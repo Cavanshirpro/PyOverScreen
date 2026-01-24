@@ -1,5 +1,5 @@
 # PyOverScreen
-
+[👉👉👉DOWNLOAD .EXE HERE!!! CLICK HERE!!! NO PYTHON NEEDED!👈👈👈](https://github.com/JustLachin/PyOverScreen/releases/download/v1/PyOverScreen.zip)
 PyOverScreen is a powerful overlay management tool built with PySide6. It allows you to create, manage, and customize multiple overlays on your screen with ease.
 
 ## Features:
@@ -11,7 +11,6 @@ PyOverScreen is a powerful overlay management tool built with PySide6. It allows
 - Target specific game windows for forced visibility. (May not working due to Windows security.)
 
 ## Installation
-[👉👉👉DOWNLOAD .EXE HERE!!! CLICK HERE!!! NO PYTHON NEEDED!👈👈👈](https://github.com/JustLachin/PyOverScreen/releases/download/v1/PyOverScreen.zip)
 1. Install Python 3.10+
 2. Install dependencies:
    ```bash
