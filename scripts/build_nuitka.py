@@ -24,7 +24,6 @@ elif sys.platform == "win32":
     args += ["--msvc=latest", "--windows-console-mode=disable"]
 elif sys.platform == "linux":
     args += ["--output-filename=PyOverScreen", "--include-package=Xlib"]
-    qt_plugins += ",wayland"
 
 args.append(f"--include-qt-plugins={qt_plugins}")
 
