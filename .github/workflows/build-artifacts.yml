@@ -4,11 +4,15 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, 'codex/**']
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   desktop:
@@ -22,7 +26,7 @@ jobs:
           - {target: linux-x64, runner: ubuntu-22.04, arch: x64, extension: tar.gz}
           - {target: linux-arm64, runner: ubuntu-24.04-arm, arch: arm64, extension: tar.gz}
           - {target: macos-x64, runner: macos-15-intel, arch: x64, extension: zip}
-          - {target: macos-arm64, runner: macos-26, arch: arm64, extension: zip}
+          - {target: macos-arm64, runner: xcode-27, arch: arm64, extension: zip}
     env:
       ARCHIVE: PyOverScreen-${{ matrix.target }}.${{ matrix.extension }}
     timeout-minutes: 35
