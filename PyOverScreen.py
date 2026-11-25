@@ -21,6 +21,7 @@ from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtGui import QIcon, QFont, QFontDatabase, QColor, QPalette, QMouseEvent, QDesktopServices, QMovie
 
 ASSET_ROOT = Path(__file__).resolve().parent
+WINDOWS = sys.platform == "win32"
 
 
 class ResizeHandle(QFrame):
@@ -142,7 +143,6 @@ class OverlayWindow(QMainWindow):
             Qt.FramelessWindowHint | 
             Qt.WindowStaysOnTopHint |
             Qt.Tool | # Helps staying above fullscreen apps
-            Qt.X11BypassWindowManagerHint |
             Qt.WindowTransparentForInput
         )
         
@@ -212,7 +212,7 @@ class OverlayWindow(QMainWindow):
 
     def ensure_topmost(self):
         """Force the window to be at the very top of the Z-order using WinAPI."""
-        if sys.platform == "win32":
+        if WINDOWS:
             try:
                 hwnd = self.winId()
                 
@@ -772,6 +772,7 @@ class AdminPanel(QMainWindow):
         self.combo_games.currentIndexChanged.connect(self.on_game_target_changed)
         game_group.setLayout(game_layout)
         display_layout.addWidget(game_group)
+        game_group.setVisible(WINDOWS)
         
         # Interactivity Lock
         self.check_lock = QCheckBox("Lock Overlay (Non-interactive / Click-through)")
@@ -881,7 +882,8 @@ class AdminPanel(QMainWindow):
 
         # Add tabs to main layout
         self.tabs.addTab(self.control_tab, "CONTROL CENTER")
-        self.tabs.addTab(self.target_tab, "TARGET CENTER")
+        if WINDOWS:
+            self.tabs.addTab(self.target_tab, "TARGET CENTER")
         main_layout.addWidget(self.tabs)
 
         # Real-time sync connections
@@ -1045,8 +1047,9 @@ class AdminPanel(QMainWindow):
         self.overlays[self.current_overlay_id].setWindowOpacity(value / 100.0)
 
     def refresh_window_list(self):
-        """Fetch all visible windows and populate the combo box."""
-        if not self.current_overlay_id: return
+        """Fetch all visible Windows windows and populate the combo box."""
+        if not WINDOWS or not self.current_overlay_id:
+            return
         
         current_text = self.combo_games.currentText()
         self.combo_games.clear()
@@ -1088,6 +1091,8 @@ class AdminPanel(QMainWindow):
 
     def refresh_target_center(self):
         """Task Manager style process/window list."""
+        if not WINDOWS:
+            return
         self.process_table.setRowCount(0)
         windows = []
 

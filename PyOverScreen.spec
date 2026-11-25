@@ -1,4 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
+import sys
 
 
 a = Analysis(
@@ -42,3 +43,10 @@ coll = COLLECT(
     upx_exclude=[],
     name='PyOverScreen',
 )
+
+if sys.platform == 'darwin':
+    app = BUNDLE(
+        coll,
+        name='PyOverScreen.app',
+        bundle_identifier='com.github.cavanshirpro.pyoverscreen',
+    )
