@@ -2,10 +2,10 @@ import sys
 import os
 import json
 import time
-from tempfile import TemporaryDirectory
 import ctypes
 from ctypes import wintypes
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                              QCheckBox, QSlider, QGroupBox, QFormLayout, QSpinBox,
@@ -422,8 +422,9 @@ class OverlayWindow(QMainWindow):
         self.browser.page().runJavaScript(script)
 
 class AdminPanel(QMainWindow):
-    def __init__(self):
+    def __init__(self, settings=None):
         super().__init__()
+        self.settings = settings if settings is not None else QSettings("PyOverScreen", "Config", self)
         self.setWindowTitle("PyOverScreen - Admin Panel")
         self.setMinimumSize(800, 650)
         
@@ -1306,13 +1307,11 @@ class AdminPanel(QMainWindow):
 
     def save_all_settings(self):
         if self.is_loading: return
-        settings = QSettings("PyOverScreen", "Config")
         data = self.get_profile_data()
-        settings.setValue("overlays_json", json.dumps(data))
+        self.settings.setValue("overlays_json", json.dumps(data))
 
     def load_all_settings(self):
-        settings = QSettings("PyOverScreen", "Config")
-        json_str = settings.value("overlays_json", "[]")
+        json_str = self.settings.value("overlays_json", "[]")
         try:
             configs = json.loads(json_str)
             if not configs:
@@ -1325,10 +1324,9 @@ class AdminPanel(QMainWindow):
             self.add_new_overlay("Default Chat")
 
 def run_smoke_test(app, settings_dir):
-    # Use a separate settings namespace so the test can start with the default overlay.
-    QSettings.setDefaultFormat(QSettings.IniFormat)
-    QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, settings_dir)
-    admin = AdminPanel()
+    # Start with the default overlay without touching the user profile.
+    settings = QSettings(str(Path(settings_dir) / "smoke.ini"), QSettings.IniFormat)
+    admin = AdminPanel(settings)
     admin.show()
     if admin.get_icon("monitor").pixmap(24, 24).isNull() or len(admin.sounds) != 6:
         return 2
