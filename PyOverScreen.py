@@ -2,8 +2,10 @@ import sys
 import os
 import json
 import time
+from tempfile import TemporaryDirectory
 import ctypes
 from ctypes import wintypes
+from pathlib import Path
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                              QCheckBox, QSlider, QGroupBox, QFormLayout, QSpinBox,
@@ -17,6 +19,9 @@ from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtMultimedia import QSoundEffect, QMediaPlayer, QAudioOutput
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtGui import QIcon, QFont, QFontDatabase, QColor, QPalette, QMouseEvent, QDesktopServices, QMovie
+
+ASSET_ROOT = Path(__file__).resolve().parent
+
 
 class ResizeHandle(QFrame):
     """A widget in the admin panel to resize the overlay by dragging."""
@@ -434,7 +439,7 @@ class AdminPanel(QMainWindow):
         self.load_all_settings()
 
     def load_fonts(self):
-        font_dir = os.path.join(os.getcwd(), "Fonts")
+        font_dir = ASSET_ROOT / "Fonts"
         # Explicitly load all fonts in the Fonts directory
         if os.path.exists(font_dir):
             for font_file in os.listdir(font_dir):
@@ -455,7 +460,7 @@ class AdminPanel(QMainWindow):
 
     def setup_sounds(self):
         self.sounds = {}
-        sound_dir = os.path.join(os.getcwd(), "src", "SND01-sine-sound-pack")
+        sound_dir = ASSET_ROOT / "src" / "SND01-sine-sound-pack"
         sound_files = {
             "click": "button.wav",
             "notify": "notification.wav",
@@ -476,9 +481,9 @@ class AdminPanel(QMainWindow):
             self.sounds[name].play()
 
     def get_icon(self, name):
-        path = os.path.join(os.getcwd(), "src", "regular-free-icon-svgs", f"{name}.svg")
+        path = ASSET_ROOT / "src" / "regular-free-icon-svgs" / f"{name}.svg"
         if os.path.exists(path):
-            return QIcon(path)
+            return QIcon(str(path))
         return QIcon()
 
     def init_ui(self):
@@ -1319,6 +1324,31 @@ class AdminPanel(QMainWindow):
         except:
             self.add_new_overlay("Default Chat")
 
+def run_smoke_test(app, settings_dir):
+    # Use a separate settings namespace so the test can start with the default overlay.
+    QSettings.setDefaultFormat(QSettings.IniFormat)
+    QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, settings_dir)
+    admin = AdminPanel()
+    admin.show()
+    if admin.get_icon("monitor").pixmap(24, 24).isNull() or len(admin.sounds) != 6:
+        return 2
+
+    overlay = next(iter(admin.overlays.values()))
+    page = overlay.browser.page()
+
+    def check_page(loaded):
+        if loaded:
+            page.runJavaScript(
+                "document.title",
+                lambda title: app.exit(0) if title == "PyOverScreen startup test" else None,
+            )
+
+    page.loadFinished.connect(check_page)
+    QTimer.singleShot(0, lambda: overlay.browser.setHtml("<title>PyOverScreen startup test</title>"))
+    QTimer.singleShot(20000, lambda: app.exit(3))
+    return app.exec()
+
+
 if __name__ == "__main__":
     os.environ["QTWEBENGINE_WIDGETS_RESOURCES_PATH"] = "" 
     
@@ -1327,7 +1357,10 @@ if __name__ == "__main__":
     app.setOrganizationName("PyOverScreen")
     app.setStyle("Fusion")
     
+    if sys.argv[1:] == ["--smoke-test"]:
+        with TemporaryDirectory() as settings_dir:
+            sys.exit(run_smoke_test(app, settings_dir))
+
     admin = AdminPanel()
     admin.show()
-    
     sys.exit(app.exec())

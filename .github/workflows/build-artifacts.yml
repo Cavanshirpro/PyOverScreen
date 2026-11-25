@@ -1,0 +1,59 @@
+name: Build Release Artifacts
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, 'codex/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    name: Windows x64 portable ZIP
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.13'
+          architecture: x64
+          cache: pip
+          cache-dependency-path: requirements-build.txt
+      - name: Install build dependencies
+        run: python -m pip install -r requirements-build.txt
+      - name: Build portable package
+        run: ./scripts/build-windows.ps1
+      - name: Launch the extracted application
+        shell: pwsh
+        run: |
+          $archive = 'artifacts/PyOverScreen-windows-x64.zip'
+          $extracted = Join-Path $env:RUNNER_TEMP 'pyoverscreen-smoke'
+          Expand-Archive -LiteralPath $archive -DestinationPath $extracted -Force
+          $exe = Join-Path $extracted 'PyOverScreen/PyOverScreen.exe'
+          $process = Start-Process -FilePath $exe -ArgumentList '--smoke-test' -WorkingDirectory $env:RUNNER_TEMP -PassThru
+          try {
+              if (-not $process.WaitForExit(45000)) {
+                  throw 'The packaged application did not finish its startup test.'
+              }
+              if ($process.ExitCode -ne 0) {
+                  throw "The packaged application failed its startup test (exit $($process.ExitCode))."
+              }
+          } finally {
+              if (-not $process.HasExited) {
+                  taskkill /PID $process.Id /T /F
+              }
+          }
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: PyOverScreen-windows-x64
+          path: |
+            artifacts/PyOverScreen-windows-x64.zip
+            artifacts/PyOverScreen-windows-x64.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
