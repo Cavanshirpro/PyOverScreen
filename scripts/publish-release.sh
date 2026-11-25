@@ -2,9 +2,13 @@
 set -euo pipefail
 
 mode="$1"
-archive=PyOverScreen-windows-x64.zip
-checksum="$archive.sha256"
-artifact_name=PyOverScreen-windows-x64
+archives=(
+    PyOverScreen-windows-x64.zip
+    PyOverScreen-linux-x64.tar.gz
+    PyOverScreen-linux-arm64.tar.gz
+    PyOverScreen-macos-x64.zip
+    PyOverScreen-macos-arm64.zip
+)
 
 fail() {
     echo "$1" >&2
@@ -27,11 +31,26 @@ jq -e --arg sha "$GITHUB_SHA" --arg repo "$GITHUB_REPOSITORY" '
 
 assets="$(mktemp -d)"
 trap 'rm -rf "$assets"' EXIT
-gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$artifact_name" --dir "$assets"
-[[ -f "$assets/$archive" && -f "$assets/$checksum" ]] || fail "Missing ZIP or checksum."
-digest="$(sha256sum "$assets/$archive" | cut -d ' ' -f 1)"
-[[ "$(tr -d '\r' < "$assets/$checksum")" == "$digest  $archive" ]] ||
-    fail "The supplied checksum does not match the ZIP."
+download_flags=()
+for archive in "${archives[@]}"; do
+    download_flags+=(--name "${archive%%.*}")
+done
+gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --dir "$assets" "${download_flags[@]}"
+
+release_files=()
+checksums=()
+for archive in "${archives[@]}"; do
+    package_dir="$assets/${archive%%.*}"
+    package="$package_dir/$archive"
+    checksum="$package.sha256"
+    [[ -f "$package" && -f "$checksum" ]] || fail "Missing archive or checksum for $archive."
+    hash="$(sha256sum "$package" | cut -d ' ' -f 1)"
+    [[ "$(tr -d '\r' < "$checksum")" == "$hash  $archive" ]] ||
+        fail "The supplied checksum does not match $archive."
+    release_files+=("$package" "$checksum")
+    checksums+=("$hash  $archive")
+done
+digest="$(printf '%s\n' "${checksums[@]}" | sha256sum | cut -d ' ' -f 1)"
 
 main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
 [[ "$main_sha" == "$GITHUB_SHA" ]] || fail "Main has advanced. Select a build for the new commit."
@@ -48,11 +67,11 @@ if [[ "$mode" == validate ]]; then
     exit 0
 fi
 
-[[ "$digest" == "$VERIFIED_DIGEST" ]] || fail "The ZIP changed after validation."
+[[ "$digest" == "$VERIFIED_DIGEST" ]] || fail "The release archives changed after validation."
 flags=()
 if [[ "$TAG" == *-* ]]; then
     flags+=(--prerelease --latest=false)
 fi
-gh release create "$TAG" "$assets/$archive" "$assets/$checksum" \
+gh release create "$TAG" "${release_files[@]}" \
     --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "PyOverScreen $TAG" \
     --generate-notes "${flags[@]}"
