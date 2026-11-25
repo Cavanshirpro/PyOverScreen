@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QFrame, QSizePolicy, QListWidget, QListWidgetItem,
                              QInputDialog, QMessageBox, QFileDialog, QComboBox,
                              QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView)
-from PySide6.QtCore import Qt, QUrl, QPoint, QSize, QSettings, Signal, QSignalBlocker, QTimer
+from PySide6.QtCore import Qt, QUrl, QPoint, QRect, QSize, QSettings, Signal, QSignalBlocker, QTimer
 from PySide6.QtGui import QIcon, QFont, QFontDatabase, QColor, QPalette, QMouseEvent
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineSettings
@@ -143,6 +143,7 @@ class OverlayWindow(QMainWindow):
         self.x11 = x11
         self.x11_target_id = None
         self.x11_target = None
+        self.profile_position = QPoint(100, 100)
         
         # Window settings
         self.setWindowFlags(
@@ -965,6 +966,7 @@ class AdminPanel(QMainWindow):
         
         # Create a new config based on the current state of the source overlay
         geom = source_overlay.geometry()
+        pos = source_overlay.profile_position if self.wayland else geom.topLeft()
         config = {
             'id': str(hash(item.text() + " (Clone)" + str(time.time_ns()))),
             'name': item.text() + " (Clone)",
@@ -1031,8 +1033,9 @@ class AdminPanel(QMainWindow):
         # Update UI fields from overlay state
         self.url_input.setText(overlay.current_source)
         geom = overlay.geometry()
-        self.spin_x.setValue(geom.x())
-        self.spin_y.setValue(geom.y())
+        pos = overlay.profile_position if self.wayland else geom.topLeft()
+        self.spin_x.setValue(pos.x())
+        self.spin_y.setValue(pos.y())
         self.spin_w.setValue(geom.width())
         self.spin_h.setValue(geom.height())
         
@@ -1183,8 +1186,6 @@ class AdminPanel(QMainWindow):
         )
         
         if file_path:
-            # Convert to forward slashes for cross-platform compatibility
-            file_path = file_path.replace("\\", "/")
             self.url_input.setText(file_path)
             # Trigger update immediately
             self.save_current_settings()
@@ -1197,20 +1198,20 @@ class AdminPanel(QMainWindow):
 
     def sync_overlay_geometry(self):
         if self.is_loading or not self.current_overlay_id: return
-        self.overlays[self.current_overlay_id].setGeometry(
-            self.spin_x.value(),
-            self.spin_y.value(),
-            self.spin_w.value(),
-            self.spin_h.value()
-        )
+        overlay = self.overlays[self.current_overlay_id]
+        size = QSize(self.spin_w.value(), self.spin_h.value())
+        if self.wayland:
+            overlay.resize(size)
+        else:
+            overlay.setGeometry(QRect(QPoint(self.spin_x.value(), self.spin_y.value()), size))
 
     def apply_config_to_overlay(self, overlay, config):
-        overlay.setGeometry(
-            config.get('x', 100),
-            config.get('y', 100),
-            config.get('w', 400),
-            config.get('h', 600)
-        )
+        overlay.profile_position = QPoint(config.get('x', 100), config.get('y', 100))
+        size = QSize(config.get('w', 400), config.get('h', 600))
+        if self.wayland:
+            overlay.resize(size)
+        else:
+            overlay.setGeometry(QRect(overlay.profile_position, size))
         overlay.setWindowOpacity(config.get('opacity', 100) / 100.0)
         overlay.update_zoom(config.get('zoom', 1.0))
         overlay.set_media_settings(config.get('loop', True), config.get('volume', 50))
@@ -1276,12 +1277,13 @@ class AdminPanel(QMainWindow):
             oid = item.data(Qt.UserRole)
             overlay = self.overlays[oid]
             geom = overlay.geometry()
+            pos = overlay.profile_position if self.wayland else geom.topLeft()
             data.append({
                 'id': oid,
                 'name': item.text(),
                 'url': overlay.current_source,
-                'x': geom.x(),
-                'y': geom.y(),
+                'x': pos.x(),
+                'y': pos.y(),
                 'w': geom.width(),
                 'h': geom.height(),
                 'opacity': int(overlay.windowOpacity() * 100),
